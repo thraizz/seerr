@@ -111,17 +111,28 @@ const UserWebPushSettings = () => {
   // Deletes/disables corresponding push subscription from database
   const disablePushNotifications = async (endpoint?: string) => {
     try {
-      const unsubscribedEndpoint = await unsubscribeToPushNotifications(
+      // Only touch the browser subscription if it actually belongs to
+      // this user. Otherwise we'd silently kill a sibling user's working
+      // subscription if they happened to be using the same browser.
+      const ownsBrowserSubscription = await verifyPushSubscription(
         user?.id,
-        endpoint
+        currentSettings
       );
+
+      let unsubscribedEndpoint: string | null = null;
+      if (ownsBrowserSubscription) {
+        unsubscribedEndpoint = await unsubscribeToPushNotifications(
+          user?.id,
+          endpoint
+        );
+      }
 
       localStorage.setItem('pushNotificationsEnabled', 'false');
       setWebPushEnabled(false);
 
       // Only delete the current browser's subscription, not all devices
       const endpointToDelete = unsubscribedEndpoint || subEndpoint || endpoint;
-      if (endpointToDelete) {
+      if (endpointToDelete && ownsBrowserSubscription) {
         try {
           await axios.delete(
             `/api/v1/user/${user?.id}/pushSubscription/${encodeURIComponent(
@@ -173,13 +184,6 @@ const UserWebPushSettings = () => {
     const verifyWebPush = async () => {
       const enabled = await verifyPushSubscription(user?.id, currentSettings);
       let isEnabled = enabled;
-
-      if (!enabled && 'serviceWorker' in navigator) {
-        const { subscription } = await getPushSubscription();
-        if (subscription) {
-          isEnabled = true;
-        }
-      }
 
       if (!isEnabled && dataDevices && dataDevices.length > 0) {
         const currentUserAgent = navigator.userAgent;

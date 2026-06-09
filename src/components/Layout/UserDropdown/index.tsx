@@ -2,6 +2,7 @@ import CachedImage from '@app/components/Common/CachedImage';
 import MiniQuotaDisplay from '@app/components/Layout/UserDropdown/MiniQuotaDisplay';
 import { Permission, useUser } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
+import { unsubscribeToPushNotifications } from '@app/utils/pushSubscriptionHelpers';
 import { Menu, Transition } from '@headlessui/react';
 import {
   ArrowRightOnRectangleIcon,
@@ -39,6 +40,14 @@ const UserDropdown = () => {
   const { user, revalidate, hasPermission } = useUser();
 
   const logout = async () => {
+    try {
+      await unsubscribeToPushNotifications(user?.id);
+    } catch {
+      // dont block logout if push notification unsubscription fails
+    }
+
+    localStorage.removeItem('pushNotificationsEnabled');
+
     const response = await axios.post('/api/v1/auth/logout');
 
     if (response.data?.status === 'ok') {
