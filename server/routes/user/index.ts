@@ -279,17 +279,17 @@ router.post<
           return;
         }
 
-        // Clean up old subscriptions from the same device (userAgent) for this user
-        // iOS can silently refresh endpoints, leaving stale subscriptions in the database
-        // Only clean up if we're creating a new subscription (not updating an existing one)
-        if (req.body.userAgent) {
+        // Clean up only true endpoint rotations. Same push-service subscription
+        // (matched by `auth`) but with a stale endpoint. Matching on userAgent
+        // alone incorrectly deletes subscriptions from sibling devices that
+        // share a UA string (e.g. two iPhones of the same model).
+        if (req.body.userAgent && req.body.auth) {
           const staleSubscriptions = await transactionalRepo.find({
             relations: { user: true },
             where: {
               userAgent: req.body.userAgent,
               user: { id: req.user?.id },
-              // Only remove subscriptions with different endpoints (stale ones)
-              // Keep subscriptions that might be from different browsers/tabs
+              auth: req.body.auth,
               endpoint: Not(req.body.endpoint),
             },
           });
